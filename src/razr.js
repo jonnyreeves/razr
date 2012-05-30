@@ -1,4 +1,4 @@
-(function ($) {
+(function () {
     'use strict';
     
 	var slice = Array.prototype.slice;
@@ -103,6 +103,7 @@
         var modelsById = {};
         
         return {
+            // Registers a model object with the framework.
             map: function (id, obj) {
                 if (modelsById[id]) {
                     throw new Error("Model `" + id + "` is already mapped");
@@ -111,18 +112,33 @@
                     notify: noteMap.trigger
                 });
             },
+            
+            // Retrieves a previously mapped model object from the framework.
             get: function (id) { 
                 return modelsById[id];
             },
+            
+            // Removes a model object from the framework.
             remove: function (id) { 
                 var prev = modelsById[id];
+                
+                // No mapping.
+                if (!prev) {
+                    return;
+                }
+                
+                // Remove from map.
                 delete modelsById[id];
+                
+                // Remove framework methods.
+                delete prev.notify;
+                
                 return prev;
             }
         };
     }
     
-    function createViewMap(noteMap) {
+    function createViewMap(noteMap, modelMap) {
         var viewsById = {};
     
         return {
@@ -144,6 +160,9 @@
                     
                     // Broadcasts a notification to the rest of the framework.
                     notify: noteMap.trigger,
+                    
+                    // Retrieves a model.
+                    getModel: modelMap.get.bind(modelMap),
                     
                     // Creates a mapping between a notification and a handler
                     // function.
@@ -258,11 +277,16 @@
             remove: function (id) { 
                 var prev = viewsById[id];
                 
+                if (!prev) {
+                    return;
+                }
+                
                 prev._registered = false;
                 if (prev.onRemove) {
                     prev.onRemove.apply(prev);
                 }
                 
+                delete prev.notify;
                 delete viewsById[id];
                 return prev;
             }
@@ -344,7 +368,7 @@
     }
     
     
-    var Razr = {
+    var razr = {
         
         // Factory method for creating a new Razr Application.  The supplied
         // appContext object must provide a `startup` method which will be
@@ -354,7 +378,8 @@
             
             var noteMap = createNotificationMap();
             var modelMap = createModelMap(noteMap);
-            var viewMap = createViewMap(noteMap);
+            var viewMap = createViewMap(noteMap, modelMap);
+            var commandMap = createCmdMap(noteMap, modelMap, viewMap);
             
             var app = extend({
                 _notificationMap: noteMap,
@@ -366,7 +391,7 @@
                 views: viewMap,
                 
                 // Access to the command registry.
-                commands: createCmdMap(noteMap, modelMap, viewMap),
+                commands: commandMap,
                 
                 // Broadcasts a notification throughout the application.
                 notify: noteMap.trigger
@@ -383,13 +408,13 @@
 
 	// Export to popular environments boilerplate.
 	if (typeof define === 'function' && define.amd) {
-		define(Razr);
+		define(razr);
 	} 
 	else if (typeof module !== 'undefined' && module.exports) {
-		module.exports = Razr;
+		module.exports = razr;
 	} 
 	else {
-		window['Razr'] = Razr;
+		window['razr'] = razr;
 	}
 
-})(jQuery);
+})();

@@ -1,15 +1,25 @@
 #razr
 
-JavaScript MVC Micro Architecture built ontop of jQuery which promotes seperation of responsibility and modular development.
-
-Razr provides a lightweight structure which allows you to map (and unmap) [Models](#Models) and [Views](#Views). Models and Views communicate with the rest of the framework via Notifications.  [Commands](#Commands) can be mapped to these Notifications in order to add flow to your application.
+JavaScript MVC micro architecture which promotes seperation of responsibility and modular development.  It aims to provide a well defined skeleton for your apps without forcing you down any particular implementation route.
 
 ## Apps
-Every Razr application must be created using the `Razr.create` factory method:
+Razr applications comprise of [models](#models), [views](#views) and [commands](#commands).  These three actors can all communicate with each other via notifications.
 
-    var razrApp= Razr.create();
+Every Razr application starts life by being created with the `Razr.create` factory method:
+
+    var razrApp = razr.create();
 	
-The resulting object (`razrApp`) will have all the Razr actors (modelMap, commandMap and viewMap) injected ready for use; all you need to do is start wiring them up.
+The resulting object (`razrApp`) will have all the Razr actors (modelMap, commandMap and viewMap) injected ready for use; all you need to do is start wiring them up.  The `Razr.create` method allows you to provide an initial context for your application where you can perform your wiring:
+
+    razr.create({ 
+        startup: function () { 
+        
+            // Nb: instead of defining models, views and commands inline, you
+            // could use RequireJS to define them in external files.
+            this.models.map('progress', { ... });
+            this.commands.map('save-progress', function () { ... });
+        };
+    }).startup();
 
 Each Razr App has it's own, unique context, that is notifications from one RazrApp will not be heard by another; this allows you to integrate multiple Razr Apps in the same environment.
 
@@ -22,9 +32,11 @@ Once a Model has been registered it can be retrieved from the model map:
 
 	var modelInstance = razrApp.models.get('model-id');
 	
-The _modelInstance_ that Razr wraps is a simple JavaScript Object (Module). Models are injected with the following convenience methods:
+The _modelInstance_ that razr wraps is a simple JavaScript Object (Module). Models are injected with the following convenience methods:
 
  * `notify(name, ...args)` - Used to dispatch notifications from this Model to the rest of the Framework
+
+Models are not able to listen for notifications, you should instead consdier mapping a command to the notification and then using that command to retrieve models and call their functions.
 
 Here's an example of a simple model which keeps track of the Player's Score:
 
@@ -48,7 +60,9 @@ Here's an example of a simple model which keeps track of the Player's Score:
 		}
 	});
 
-###Views
+Models don't just have to be data, they can also represent third-party libraries, APIs and services which your application wants to use.  Typically you will want to treat your razr model as a proxy to the object; providing an application-specific API and broadcasting notifications when it's state changes.
+
+### Views
 Views are similar to _Models_ in that they are registered (and retrieved) based on an id:
 
 	razrApp.views.map('view-id', viewInstance);
@@ -89,7 +103,10 @@ Here's an example of a simple View which will update whenever the Player's Score
 			this.notify('resetScoreClicked');
 		}
 	});
-	
+
+Views are not able to retrieve models directly, instead they should listen for framework notifications - this enforces loose coupling between them.
+
+
 ### Commands
 Commands provide the wiring for your application;  Razr provides a mechanism to map a notification to a function which will be called whenever that notification is broadcast by another actor in the framework.
 
@@ -111,13 +128,17 @@ Here's an example of a Command which resets the player's score when the `resetSc
 	});
 
 ## RequireJS Support
-Razr was built from the ground up to take full advantage of RequireJS; you can define all your Models, Views and Commands in external files and pull them in via `require()`, for example:
+Razr was built from the ground up to take full advantage of RequireJS; you can define all your models, views and commands in external files and pull them in via `require()`, for example:
 
-	// Register Models.
-	this.models.map('score', require('./model/scoreModel'));
-
-	// Register Commands.
-	this.commands.map('resetScoreClicked', require('./command/resetScoreCommand'));
-
-	// Register Views.
-	this.views.map('scoreCounter', require('./view/scoreCounterView'));
+razr.create({
+    startup: function () { 
+    	// Register Models.
+    	this.models.map('score', require('./model/scoreModel'));
+    
+    	// Register Commands.
+    	this.commands.map('resetScoreClicked', require('./command/resetScoreCommand'));
+    
+    	// Register Views.
+    	this.views.map('scoreCounter', require('./view/scoreCounterView'));
+    }
+).startup();

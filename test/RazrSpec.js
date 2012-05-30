@@ -1,4 +1,4 @@
-describe("Razr.create", function () {     
+describe("razr.create", function () {     
     var obj;
     
     beforeEach(function () { 
@@ -9,18 +9,18 @@ describe("Razr.create", function () {
     
     it("should check that the supplied Application Object has a `startup()` method", function () { 
         expect(function () { 
-            Razr.create({ }, { autoStartup: true }) 
+            razr.create({ }, { autoStartup: true }) 
         }).toThrow();
     });
     
     it("should execute the startup method if autoStartup is true", function () { 
-        var app = Razr.create(obj, { autoStartup: true });
+        var app = razr.create(obj, { autoStartup: true });
         
         expect(app.startup).toHaveBeenCalled();
     });
     
     it("should not execute the startup method if autoStartup is false", function () { 
-        var app = Razr.create(obj, { autoStartup: false });
+        var app = razr.create(obj, { autoStartup: false });
         
         expect(app.startup).not.toHaveBeenCalled();
     });
@@ -30,7 +30,7 @@ describe("Razr.create", function () {
         var app;
         
         beforeEach(function () { 
-            app = Razr.create(obj, { autoStartup: false });
+            app = razr.create(obj, { autoStartup: false });
         });
         
         it("should have been supplied a notify method", function () { 
@@ -140,8 +140,35 @@ describe("Razr.create", function () {
                 expect(modelMap.remove('unmapped')).not.toBeDefined();
             });
             
-            it("should inject a notify method into the Model object", function () { 
-                expect(modelMap.map(id, modelObj).notify).toBeDefined();
+
+            
+            describe("RazrModel", function () { 
+                var model;
+                
+                beforeEach(function () { 
+                    model = modelMap.map(id, modelObj);
+                });
+                
+                it("should be supplied with a notify method", function () { 
+                    expect(model.notify).toBeDefined();
+                });
+                
+                it("should be able to broadcast notification", function () { 
+                    var noteName = 'note-name';
+                    var handlerSpy = jasmine.createSpy('handler');
+                    
+                    app.commands.map(noteName, handlerSpy);
+                    model.notify(noteName, 'args');
+                    
+                    expect(handlerSpy).toHaveBeenCalledWith(noteName, 'args');
+                });
+                
+                it("should no longer be albe to notify when removed", function () { 
+                    modelMap.remove(id);
+                    expect(function () { 
+                        model.notify("can't call notify when unmapped");
+                    }).toThrow();
+                });
             });
         });        
         
@@ -290,6 +317,10 @@ describe("Razr.create", function () {
                 expect(viewMap.get(id)).not.toBeDefined();
             });
             
+            it("should ignore requests to remove unmapped views", function () { 
+                viewMap.remove('unmapped');
+            });
+            
             it("should return the unmapped view instance", function () { 
                 viewMap.map(id, viewObj);
                 var unmapped = viewMap.remove(id);
@@ -313,22 +344,41 @@ describe("Razr.create", function () {
                 expect(viewObj.onRemove).toHaveBeenCalled();
             });
             
-            describe("RazrApp.views notifications", function () { 
+            describe("RazrView", function () { 
                 var view;
                 
                 beforeEach(function () { 
                     view = viewMap.map(id, viewObj);
                 });
                 
-                it("should supply a notify method", function () { 
+                it("should be supplied with a notify method", function () { 
                     expect(view.notify).toBeDefined();
                 });
                 
-                it("should supply an onNote method", function () { 
+                it("should be able to notify the framework", function () {
+                    var cmdSpy = jasmine.createSpy('cmdSpy');
+                    var noteName = 'note-name';
+                    
+                    app.commands.map(noteName, cmdSpy);
+                    view.notify(noteName);
+                    
+                    expect(cmdSpy).toHaveBeenCalledWith(noteName);
+                });
+                
+                it("should be supplied with a getModel method", function () { 
+                    expect(view.getModel).toBeDefined();
+                });
+                
+                it("should be able to retrieve a mapped model", function () { 
+                    app.models.map('model-id', { });
+                    expect(view.getModel('model-id')).toBeDefined();
+                });
+                
+                it("should be supplied with an onNote method", function () { 
                     expect(view.onNote).toBeDefined();
                 });
                 
-                it("should supply an offNote method", function () { 
+                it("should be supplied with an offNote method", function () { 
                     expect(view.offNote).toBeDefined();
                 });    
                 
@@ -397,7 +447,14 @@ describe("Razr.create", function () {
                     expect(handler).not.toHaveBeenCalled();
                 });
                 
-                it("should not allow hanler overwrites", function () { 
+                it("should not be able to send notifications when removed", function () { 
+                    viewMap.remove(id);
+                    expect(function () { 
+                        view.notify("can't notifiy when unmapped")
+                    }).toThrow();
+                });
+                
+                it("should not allow handler overwrites", function () { 
                     var handler = jasmine.createSpy('onNote');
                     var noteName = 'note-name';
                     
@@ -419,8 +476,8 @@ describe("Razr.create", function () {
         var appA, appB;
         
         beforeEach(function () { 
-            appA = Razr.create({ startup: function () { } });
-            appB = Razr.create({ startup: function () { } });
+            appA = razr.create({ startup: function () { } });
+            appB = razr.create({ startup: function () { } });
         });
         
         it("should not have access to each other's models", function () { 
