@@ -73,7 +73,7 @@ Just as with _Models_, the _viewInstance_ that Razr wraps is another JavaScript 
  * `notify(name, ...args)` - Used to dispatch notifications from the View to the rest of the Framework.
  * `onNote(name, handler)` - Maps a notification to a handler function in the scope of this View.
  * `offNote(name, handler)` - Removes a notification mapping.
- * `onEvent(element, ...args)` - Maps a DOM Event to a handler function in the scope of this View.  This method uses the same syntax as (`jQuery.on`)[http://api.jquery.com/on].
+ * `onEvent(element, ...args)` - Maps a DOM Event to a handler function in the scope of this View.  This method uses the same syntax as `jQuery.on`.
  * `offEvent(element)` - Removes a DOM Event mapping.
  * `getModel(modelId)` - Retrieves a model instance.
 
