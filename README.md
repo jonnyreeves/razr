@@ -73,6 +73,7 @@ Just as with _Models_, the _viewInstance_ that Razr wraps is another JavaScript 
  * `notify(name, ...args)` - Used to dispatch notifications from the View to the rest of the Framework.
  * `onNote(name, handler)` - Maps a notification to a handler function in this View.  All Notification mapped this way will be automatically turned off when when View is removed.
  * `offNote(name, handler)` - Removes a notification mapping.
+ * `getModel(modelId)` - Retrieves a model instance.
 
 Views can also, optionally define an `onAdd` and `onRemove` method which will get invoked at the relevant times in the View's lifecycle - this is a good oppertunity to register and remove any notification mappings.
 
@@ -104,7 +105,7 @@ Here's an example of a simple View which will update whenever the Player's Score
 		}
 	});
 
-Views are not able to retrieve models directly, instead they should listen for framework notifications - this enforces loose coupling between them.
+Views are able to retrieve models directly via `getModel`, however it is reccomended that you try and enfore loose copupling by having your views to listening to notifications instead.
 
 
 ### Commands
@@ -114,7 +115,7 @@ The functions executed by the Command Map get the following properties injected 
 
  * `models` - Provides access to the model map
  * `views` - Provides access to the view map
- * `notify(name, ...args)` - Used to dispatch notification from the Command to the rest of the Framework.
+ * `notify(name, ...args)` - Used to dispatch notification from the Command to the rest of the framework.
 
 Here's an example of a Command which resets the player's score when the `resetScoreClicked` notification is broadcast:
 
@@ -130,15 +131,15 @@ Here's an example of a Command which resets the player's score when the `resetSc
 ## RequireJS Support
 Razr was built from the ground up to take full advantage of RequireJS; you can define all your models, views and commands in external files and pull them in via `require()`, for example:
 
-razr.create({
-    startup: function () { 
-    	// Register Models.
-    	this.models.map('score', require('./model/scoreModel'));
-    
-    	// Register Commands.
-    	this.commands.map('resetScoreClicked', require('./command/resetScoreCommand'));
-    
-    	// Register Views.
-    	this.views.map('scoreCounter', require('./view/scoreCounterView'));
-    }
-).startup();
+    razr.create({
+        startup: function () { 
+        	// Register Models.
+        	this.models.map('score', require('./model/scoreModel'));
+        
+        	// Register Commands.
+        	this.commands.map('resetScoreClicked', require('./command/resetScoreCommand'));
+        
+        	// Register Views.
+        	this.views.map('scoreCounter', require('./view/scoreCounterView'));
+        }
+    ).startup();

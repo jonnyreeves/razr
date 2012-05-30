@@ -37,6 +37,7 @@ describe("razr.create", function () {
             expect(app.notify).toBeDefined();
         });
         
+        
         describe("RazrApp.notificationMap", function () {         
             var notificationMap;
             
@@ -244,6 +245,24 @@ describe("razr.create", function () {
                 app.notify(noteName);
                 
                 expect(suppliedNotify).toBeDefined();
+            });
+            
+            it("should be able to broadcast notifications", function () { 
+                var noteA = 'note-a';
+                var noteB = 'note-b';
+                var noteBCmdInvoked = false;
+                
+                cmdMap.map(noteA, function () { 
+                    this.notify(noteB);
+                });
+                
+                cmdMap.map(noteB, function () {
+                    noteBCmdInvoked = true;
+                });
+                
+                app.notify(noteA);
+                
+                expect(noteBCmdInvoked).toBe(true);
             });
             
             it("should supply the modelMap to commands when they are executed", function () { 
