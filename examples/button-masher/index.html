@@ -1,0 +1,231 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+  "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+    <title>Button Masher (PRO) :: razr example</title>
+    
+    <!-- This example uses jQuery, but razr works just as well with zepto -->
+    <!-- or no DOM selector (you just won't get to map DOM events -->
+    <script src="http://code.jquery.com/jquery-1.7.2.min.js"></script>
+    <script src="https://raw.github.com/jonnyreeves/razr/master/src/razr.js"></script>
+    
+    <!-- This example has all the application source code in a single block -->
+    <!-- for decent sized projects it would be a much better idea to make -->
+    <!-- use of a module loader, such as RequireJS to split your logic out -->
+    <script>
+    
+        // Wait for DOM Ready before kicking off the app.
+        $(function () { 
+            razr.create({
+                startup: function () {
+                    
+                    // Map models.
+                    this.models.map('timerModel', timerModel);
+                    this.models.map('scoreModel', scoreModel);
+                    
+                    // Map views.
+                    this.views.map('controlsView', controlsView);
+                    this.views.map('scoreView', scoreView);
+                    
+                    // Map commands.
+                    this.commands.map('buttonClicked', function () { 
+                        var timerModel = this.models.get('timerModel');
+                        var scoreModel = this.models.get('scoreModel');
+                        
+                        if (timerModel.isRunning()) {
+                            scoreModel.incrementScore(1);
+                        }
+                        else {
+                            this.notify('startNewGame');
+                        }
+                    });
+                    
+                    this.commands.map('timeUp', function () { 
+                         this.models.get('scoreModel').onGameOver();
+                    });
+                    
+                    this.commands.map('startNewGame', function () { 
+                        var timerModel = this.models.get('timerModel');
+                        var scoreModel = this.models.get('scoreModel');
+                        
+                        // Reset the player's score at the start of a new game.
+                        if (!timerModel.isRunning()) {
+                            scoreModel.reset();
+                            timerModel.start(10000);
+                        }
+                    });
+                    
+                    this.commands.map('newHighScore', function (note, newHighScore, previousHighScore) { 
+                        alert("You just PWNED you previous high score of " + 
+                            previousHighScore + "!");
+                    });
+                    
+                }
+            }).startup();
+        });
+        
+        
+        // Model's the player's current score (and their best score).
+        var scoreModel = {
+            _score: 0,
+            _highScore: 0,
+            
+            onGameOver: function () {
+                
+                // Update HighScore.
+                if (this._score > this._highScore) {
+                    var prevHighScore = this._highScore;
+                    this._highScore = this._score;
+                    
+                    if (prevHighScore > 0) {
+                        this.notify('newHighScore', this._highScore, prevHighScore);
+                    }
+                }
+                
+            },
+            
+            updateScore: function (newScore) { 
+                var oldScore = this._score;
+                this._score = newScore;
+                this.notify('scoreChanged', newScore, oldScore);
+            },
+            
+            getScore: function () { 
+                return this._score;
+            },
+            
+            incrementScore: function (value) {
+                this.updateScore(this._score + value);
+            },
+            
+            reset: function () { 
+                this.updateScore(0);
+            }
+        }
+        
+        // Models the countdown timer which the game runs on.
+        var timerModel = {
+            _startTime: 0,
+            _intervalId: -1,
+            _duration: 0,
+            
+            start: function (durationInMs) {
+                this._duration = durationInMs;
+                this._startTime = new Date().getTime()
+                
+                var self = this;
+                this._intervalId = setInterval(function () { 
+                    self._onTick();
+                }, 250);
+                
+                this.notify('timerStarted', durationInMs);
+            },
+            
+            isRunning: function () { 
+                return this._intervalId !== -1;
+            },
+            
+            _onTick: function () {                
+                var msElapsed = new Date().getTime() - this._startTime;
+                var msLeft = this._duration - msElapsed;
+                
+                if (msLeft > 0) {
+                    this.notify('timeLeftUpdated', msLeft);
+                }
+                else {
+                    this.notify('timeUp');
+                    clearInterval(this._intervalId);
+                    this._intervalId = -1;
+                }
+            }
+        }
+        
+        // Render's the user's score.
+        var scoreView = {
+            onAdd: function () {
+                // Notifications
+                this.onNote('scoreChanged', this.onScoreChanged);
+                this.onNote('newHighScore', this.onNewHighScore);
+            },
+            
+            onScoreChanged: function (note, newScore) { 
+                $('#score').html(newScore);
+            },
+            
+            onNewHighScore: function() {
+                console.log("newHightScore");
+                $('#score').append(' <span>NEW HIGH SCORE!</span>');
+            }
+        }
+        
+        // Renders the all important buttons!
+        var controlsView = {
+            onAdd: function () { 
+                // DOM events.
+                this.onEvent($('#the-button'), 'click', this.onButtonClicked);
+                this.onEvent($('#play-again'), 'click', this.onPlayAgainClicked);
+                
+                // Notifications.
+                this.onNote('timerStarted', this.onTimerStarted);
+                this.onNote('timeLeftUpdated', this.onTimeLeftUpdated);
+                this.onNote('timeUp', this.onTimeUp);
+                
+                $('#play-again').hide();
+            },
+            
+            onButtonClicked: function () {
+                this.notify('buttonClicked');
+            },
+            
+            onPlayAgainClicked: function () { 
+                $('#play-again').hide();
+                this.notify('startNewGame');
+            },
+            
+            onTimerStarted: function () {
+                
+                // Re-enable the button.
+                $('#the-button').text('Click Me!');
+                $('#the-button').attr('disabled', false);
+            },
+            
+            onTimeLeftUpdated: function (note, msLeft) {
+                $('#time-left').html(this.formatTime(msLeft));
+            },
+            
+            onTimeUp: function () { 
+                $('#the-button').text("Time's Up!");
+                $('#the-button').attr('disabled', true);
+                
+                // Show the play again button.
+                $('#play-again').show();
+            },
+            
+            formatTime: function (value) {
+                function zeroPad(value) { 
+                    if (value.toString().length === 1) {
+                        return "0" + value;
+                    }
+                    return value;
+                }
+                var min = Math.floor((value / 1000) / 60);
+                var sec = Math.floor((value / 1000) - (min * 60));
+                
+                return zeroPad(min) + ":" + zeroPad(sec);
+            }
+        }
+        
+    
+    </script>
+</head>
+<body>
+    <h1>Button Masher (pro)</h1>
+    <p>Click the button to increase your score before the timer runs out!</p>
+    
+    <p>Score: <span id="score">0</span></p>
+    <p>Time Left: <span id="time-left">0:00</span></p>
+    
+    <button id="the-button">Start</button>
+    <button id="play-again">Play Again?</button>
+</body>
+</html>
