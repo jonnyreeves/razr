@@ -140,6 +140,30 @@
     
     function createViewMap(noteMap, modelMap) {
         var viewsById = {};
+        
+        // Normalises the arguments supplied to $.on.
+        function normalizeOnEventArgs(args) {
+            if (typeof args[0] === 'object') {
+                return args;
+            }
+            
+            var selector = null;
+            var eventMap = {};
+            var callback = args[args.length - 1];
+            var events = args[0].split(" ");
+                                    
+            for (var i = 0; i < events.length; i++) {
+                eventMap[events[i]] = callback;
+            }
+            
+            // Selector is the optional second argument, callback is always last.
+            if (args.length === 3) {
+                selector = args[1];
+            }
+            
+            return [ eventMap, selector ];
+        }
+        
     
         return {
             // Registers a view object with the framework.  If your view object
@@ -157,6 +181,7 @@
                         routeNoteBinding: null,
                         entries: {},
                     },
+                    _mappedEvents: [],
                     
                     // Broadcasts a notification to the rest of the framework.
                     notify: noteMap.trigger,
@@ -250,6 +275,64 @@
                             // defensive copy incase the handlers are modified in-flight.
                             handlers = handlers.slice();
                             handlers[i].apply(this, arguments);
+                        }
+                    },
+                    
+                    // Wires up DOM events to handlers in this View by delegating
+                    // through to the current DOM Library.
+                    onEvent: function (element) {
+
+                        // Normalize arguments into an event map.
+                        var args = normalizeOnEventArgs(slice.call(arguments, 1));
+                        
+                        // Bind the callbacks into the view's scope.
+                        for (var key in args[0]) {
+                            args[0][key] = args[0][key].bind(this);
+                        }
+                        
+                        // Store the mapping
+                        this._mappedEvents.push({
+                            element: element,
+                            args: args
+                        });
+                        
+                        $(element).on.apply(element, args);
+                    },
+                    
+                    // Removes any events previous mapped via `onEvent`.
+                    offEvent: function (element) {
+                        var elementIndexMap = {}, i, mapping, len;
+                        
+                        len = this._mappedEvents.length;
+                        
+                        // Unmap everything.
+                        if (!element) {
+                            for (i = 0; i < len; i++) {
+                                mapping = this._mappedEvents[i];
+                                $(mapping.element).off.apply(mapping.element, mapping.args);
+                            }
+                            
+                            this._mappedEvents.length = 0;
+                        }
+                        
+                        // Filter all mappings for the supplied element.
+                        else {
+                            for (i = 0; i < len; i++) {
+                                mapping = this._mappedEvents[i];
+                                if (mapping.element === element) {
+                                    $(mapping.element).off.apply(mapping.element, mapping.args);
+                                    this._mappedEvents[i] = null;
+                                }
+                            }
+                            
+                            // Compact the Array.
+                            var compacted = [];
+                            for (i = 0; i < len; i++) {
+                                if (this._mappedEvents[i] !== null) {
+                                    compacted.push(this._mappedEvents[i]);
+                                }
+                            }
+                            this._mappedEvents = compacted;
                         }
                     }
                              
@@ -367,6 +450,10 @@
         app.startup();
     }
     
+    // razr will automatically wire up to jQuery or Zepto for DOM manipulation
+    // (at present, this is only used for events).  You can override this 
+    // selection via `razr.setDomLibrary()`.
+    var $ = window.jQuery || window.Zepto;
     
     var razr = {
         
@@ -402,6 +489,13 @@
             }
             
             return app;
+        },
+        
+        // Allows you to specify the DOM manipulation library you want to use;
+        // this automatically default to jQuery or Zepto if found on the 
+        // window object.
+        setDomLibrary: function(lib) {
+            $ = lib;
         }
     }
 

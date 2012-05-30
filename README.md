@@ -71,9 +71,13 @@ Views are similar to _Models_ in that they are registered (and retrieved) based 
 Just as with _Models_, the _viewInstance_ that Razr wraps is another JavaScript object - no magic involved.  Views are injected with the following convenience methods:
 
  * `notify(name, ...args)` - Used to dispatch notifications from the View to the rest of the Framework.
- * `onNote(name, handler)` - Maps a notification to a handler function in this View.  All Notification mapped this way will be automatically turned off when when View is removed.
+ * `onNote(name, handler)` - Maps a notification to a handler function in the scope of this View.
  * `offNote(name, handler)` - Removes a notification mapping.
+ * `onEvent(element, ...args)` - Maps a DOM Event to a handler function in the scope of this View.  This method uses the same syntax as (`jQuery.on`)[http://api.jquery.com/on].
+ * `offEvent(element)` - Removes a DOM Event mapping.
  * `getModel(modelId)` - Retrieves a model instance.
+
+Note that both `onEvent` and `offEvent` require the presense of a DOM Library, by default razr will detect [jQuery](http://jquery.com) or [Zepto](http://zeptojs.com), but you can specify a custom one via `razr.setDomLibrary()`.
 
 Views can also, optionally define an `onAdd` and `onRemove` method which will get invoked at the relevant times in the View's lifecycle - this is a good oppertunity to register and remove any notification mappings.
 
@@ -85,8 +89,8 @@ Here's an example of a simple View which will update whenever the Player's Score
 			// Map 'scoreChanged' notifications to a handler.
 			this.onNote('scoreChanged', this.onScoreChanged);
 			
-			// Use jQuery to map a click handler
-			$('reset-score').on('click', this.onResetScoreClicked);
+			// Map a DOM event to a handler (note the syntax is identical to jQuery.on).
+			this.onEvent($('reset-score'), 'click', this.onResetScoreClicked);
 		},
 		
 		onRemove: function () { 

@@ -364,10 +364,15 @@ describe("razr.create", function () {
             });
             
             describe("RazrView", function () { 
-                var view;
+                var view, domLib, domQuery;
                 
                 beforeEach(function () { 
                     view = viewMap.map(id, viewObj);
+                    domQuery = jasmine.createSpyObj('domQuery', [ 'on', 'off' ]);
+                    domLib = jasmine.createSpy('domLib').andReturn(domQuery);
+                                        
+                    // Override the DOM Selector Library.
+                    razr.setDomLibrary(domLib);
                 });
                 
                 it("should be supplied with a notify method", function () { 
@@ -473,7 +478,7 @@ describe("razr.create", function () {
                     }).toThrow();
                 });
                 
-                it("should not allow handler overwrites", function () { 
+                it("should not allow noteOn handler overwrites", function () { 
                     var handler = jasmine.createSpy('onNote');
                     var noteName = 'note-name';
                     
@@ -483,6 +488,64 @@ describe("razr.create", function () {
                         view.onNote(noteName, handler) 
                     }).toThrow('Notification `note-name` is already mapped to supplied function');
                     
+                });
+                
+                it("should be supplied with an onEvent method", function () { 
+                    expect(view.onEvent).toBeDefined();
+                });
+                
+                it("should be supplied with an offEvent method", function () { 
+                    expect(view.offEvent).toBeDefined();
+                });
+                
+                it("should delegate onEvent mappings through to the DOM selector", function () { 
+                    var el = {};
+                    var callback = jasmine.createSpy('callback');
+                    
+                    view.onEvent(el, 'click mousedown', 'selector', callback);
+                    
+                    // Note the $.on arguments will be normalized into a map.
+                    expect(domLib).toHaveBeenCalledWith(el);
+                    expect(domQuery.on).toHaveBeenCalledWith({ click: jasmine.any(Function), mousedown: jasmine.any(Function) }, 'selector');
+                });
+                
+                it("should remove all event mappings if no element specified", function () { 
+                    var el1 = { name: "el1" };
+                    var el2 = { name: "el2" };
+                    var callback = jasmine.createSpy('callback');
+                    
+                    view.onEvent(el1, { 'click': callback });
+                    view.onEvent(el2, { 'click': callback });
+                    
+                    domLib.reset();
+                    view.offEvent();
+                    
+                    expect(domLib.callCount).toBe(2);
+                    expect(domLib).toHaveBeenCalledWith(el1);
+                    expect(domLib).toHaveBeenCalledWith(el2);
+                });
+                
+                it("should remove event mappings of a given element via the DOM selector", function () { 
+                    var el1 = { name: "el1" };
+                    var el2 = { name: "el2" };
+                    var callback = jasmine.createSpy('callback');
+                    
+                    view.onEvent(el2, { 'click': callback });
+                    view.onEvent(el1, { 'mousedown': callback });
+                    
+                    domLib.reset();
+                    view.offEvent(el1);
+                    
+                    expect(domLib.callCount).toBe(1);
+                    expect(domLib).toHaveBeenCalledWith(el1);
+                    expect(domLib).not.toHaveBeenCalledWith(el2);
+                    
+                    expect(domQuery.off).toHaveBeenCalledWith({ 'mousedown': jasmine.any(Function) }); 
+                });
+                
+                it("should ignore calls to remove unmapped DOM events", function () { 
+                    view.offEvent({ unregistered: "dom element" });
+                    expect(domLib).not.toHaveBeenCalled();
                 });
             });
         });
@@ -549,4 +612,11 @@ describe("razr.create", function () {
     });
 });
 
+describe("razr.setDomLibrary", function () { 
+    
+    it("should allow you to override the DOM selector library", function () { 
+        var domSpy = jasmine.createSpy();
+        razr.setDomLibrary(domSpy);
+    });
+});
 
