@@ -1,36 +1,7 @@
 (function ($) {
     'use strict';
-	
+    
 	var slice = Array.prototype.slice;
-
-	/*!
-	 * jQuery Tiny Pub/Sub for jQuery 1.7 - v0.1 - 27/10/2011
-	 * Based on @cowboy Ben Alman's REALLY tiny pub/sub. 
-	 * 1.7 specific updates by @addyosmani.
-	 * Copyright maintained by @cowboy. 
-	 * Dual licensed under the MIT and GPL licenses.
-	 */
-	var PubSub = (function () {
-		var topics = [];
-		
-		return function(name) {
-			if (!name) {
-				throw new Error();
-			}
-
-			// Create a new Subscription topic if one does not exist.
-			if (topics[name] === void 0) {
-				var callbacks = jQuery.Callbacks();
-				topics[name] = {
-					publish: callbacks.fire,
-					subscribe: callbacks.add,
-					unsubscribe: callbacks.remove
-				};
-			}
-
-			return topics[name];
-		};
-	})();
 
 	/*!
 	 * ES5-shim.js https://github.com/kriskowal/es5-shim
@@ -64,276 +35,350 @@
 			return bound;
 		};
 	}
+    
+    function extend(obj) { 
+        var args = slice.call(arguments, 1)
+        for (var i = 0; i < args.length; i++) {
+            for (var prop in args[i]) {
+                obj[prop] = args[i][prop];
+            }
+        }
+        return obj;
+    }
+    
+    function cloneFn(fn) {
+        var clone = function () { 
+            return fn.apply(clone, arguments); 
+        };
+        for( var key in fn ) {
+            clone[key] = fn[key];
+        }
+        return clone;
+    }
 
-
-	// Tiny JavaScript MVC micro-architecture which promotes seperation of responsibility and modular development.
-	// Yes, it's based on Singletons, but, no, that's not the end of the world :)
-	var Razr = { };
-
-	// Broadcasts a notifiaction which can be handled by all Actors within the framework.
-	Razr.notify = function(name) {
-		PubSub(name).publish.apply(null, arguments);
-	};
-	
-	// Model registiry.
-	Razr.Model = {			
-		
-		// id => Model.
-		_modelMap: { },
-
-		// Prototype for all Models created via Model.create()
-		_modelProto: {
-			// Dispatches a framework notification which can be handled by Views or Controllers.
-			notify: Razr.notify
-		},
-
-		// Creates a new Model instance with the specified id.
-		map: function (id, obj) {
-			this._modelMap[id] = $.extend({ }, this._modelProto, obj);
-			this._modelMap[id]._id = id;
-		},
-		
-		// Removes a Model.
-		remove: function (id) {
-			var value = this._modelMap[id];
-			delete this._modelMap[id];
-			return value;
-		},
-
-		// Retrieve a model.
-		get: function (id) {
-			return this._modelMap[id];
-		}
-	};
-		
-	// View registry
-	Razr.View = {
-		
-		// id => View
-		_viewMap: { },
-		
-		// Prototype for all Views.
-		_viewProto: {
-			
-			// Maps a Framework notification to a handler.
-			mapNote: function (name, handler) {
-				
-				// We need to keep reference to both the handler function and the bound version of _onNote so we
-				// can unsubscribe from this notification in the future.
-				var registration = { callback: this._onNote.bind(this), handler: handler };
-
-				if (this._noteMap[name] === void 0) {
-					this._noteMap[name] = [ registration ];
-
-					// Register the mapping.
-					PubSub(name).subscribe(registration.callback);
-				}
-				else {
-					this._noteMap[name].push(registration);
-				}
-			},
-			
-			// Maps a jQuery event (such as 'click') to a handler function; any events mapped in this fashion will
-			// automatically be unmapped when this View is removed.
-			mapEvent: function (element) {
-				var args = slice.call(arguments);
-				
-				// Replace it with a handler bound in the scope of the view.
-				args[args.length - 1] = args[args.length - 1].bind(this)
-
-				// Store this registration so we can remove it later.
-				this._mappedEvents.push({
-					el: element,
-					event: args[1],
-					selector: args[2],
-					handler: args[args.length - 1]
-				});
-
-				$(element).on.apply(element, args.slice(1));
-			},
-			
-			// Internal callback which invokes previously mapped commands when a notifiaction comes in.
-			_onNote: function (name) {
-				var noteArgs = slice.call(arguments, 1);
-				var self = this;
-
-				$.each(this._noteMap[name], function() {
-
-					// Invoke the handler from the registraionToken in the correct context.
-					this.handler.apply(self, noteArgs);
-				});
-			},
-
-			// Dispatches a framework notification which can be handled by other Views or Controllers.
-			notify: Razr.notify,
-			
-			// Convenience method for retrieving a Model
-			getModel: Razr.Model.get.bind(Razr.Model),
-			
-			_preRegister: function () {
-				if ($.isFunction(this.onRegister)) {
-					this.onRegister();
-					this._active = true;
-				}
-			},
-
-			_preRemove: function () {
-				
-				// Clear all mapped notifications
-				$.each(this._noteMap, function(key) {
-					$.each(this, function() {
-						PubSub(key).unsubscribe(this.callback);
-					});
-				});
-				this._noteMap = { };
-
-				// Clear all mapped jQuery events.
-				$.each(this._mappedEvents, function() {
-					$(this.el).off(this.event, this.selector, this.handler);
-				});
-
-				if ($.isFunction(this.onRemove)) {
-					this.onRemove();
-				}
-
-				this._active = false;
-			}
-		},
-		
-		// Creates a new View instance with the supplied id.
-		map: function (id, obj, options) {
-			options = options || { callOnRegister: true };
-
-			// Create the new View object
-			var view = $.extend({
-				// Flag used to determine if this View needs to be deactivated when removed.
-				_active: false,
-
-				// Hold a map of all subscriptions created using this.mapNote.
-				_noteMap: {},
-			
-				// Collection of jQuery event registrations mapped by this View.
-				_mappedEvents: []
-			}, this._viewProto, obj);
-			this._viewMap[id] = view;
-			view._id = id;
-			
-			if (options.callOnRegister) {
-				view._preRegister();
-			}
-		},
-		
-		// Removes this View from the Registry.
-		remove: function (id) {
-			var value = this._viewMap[id];
-			
-			if (!value) {
-				return null;
-			}
-
-			// Decativate to remove all notifiaction listeners.
-			if (value._active) {
-				value._preRemove();
-			}
-			
-			delete this._viewMap[id];
-			return value;
-		},
-		
-		// Retrieve a View.
-		get: function (id) {
-			return this._viewMap[id];
-		}
-	};
-
-
-	// Command Registry.
-	Razr.Controller = {
-		
-		// Maps NotificationName => Function[]
-		_cmdMap: {},
-		
-		// Maps a notificationName to a callback function.
-		map: function (noteName, fn) {
-			if (this._cmdMap[noteName] === void 0) {
-				this._cmdMap[noteName] = [fn];
-				
-				// Register the Command subscription.
-				PubSub(noteName).subscribe(controllerOnNote);
-			}
-			else {
-				this._cmdMap[noteName].push(fn);
-			}
-
-			return fn;
-		},
-		
-		// Remove a Command mapping.
-		unmap: function (noteName, fn) {
-
-			// No commands mapped to this notification.
-			if (this._cmdMap[noteName] === void 0) {
-				return;
-			}
-
-			// If no function is supplied, remove all Commands mapped to the supplied notification.
-			if (typeof fn !== 'function') {
-				PubSub(noteName).unsubscribe(controllerOnNote);
-				delete this._cmdMap[noteName];
-			}
-			
-			// Otherwise, remove a specific mapping.
-			else {
-				var idx = $.inArray(fn, this._cmdMap[noteName]);
-				if (idx > 0) {
-					this._cmdMap[noteName].splice(idx, 1);
-				}
-				
-				// If there are no more mappings we can unsubscribe all.
-				if (this._cmdMap[noteName].length === 0) {
-					this.unmap(noteName);
-				}
-			}
-		},
-		
-		// Internal callback which invokes previously mapped commands when a notifiaction comes in.
-		_onNote: function (name) {
-			var noteArgs = slice.call(arguments, 1);
-
-			$.each(this._cmdMap[name], function() {
-
-				// Inject Razr and some convenience methosd into the Command.
-				this.Razr = Razr;
-				this.getModel = this.Razr.getModel;
-				this.notify = this.Razr.notify;
-				
-				this.Note = { name: name, args: noteArgs };
-					
-				// Invoke the Command handler function supplying the notification which caused it to be triggered.
-				this.apply(this, noteArgs);
-					
-				// Remove all injections.
-				delete this.Razr;
-				delete this.getModel;
-				delete this.notify;
-			});
-		}
-	};
-	
-	// As there's only a Single Controller registry we can bind Razr.Controller._onNote once to save memory.
-	var controllerOnNote = Razr.Controller._onNote.bind(Razr.Controller);
-
-
-	// Facade - these convenience methods should be preferred over delving into the MVC Actors.
-	Razr.mapModel = Razr.Model.map.bind(Razr.Model);
-	Razr.removeModel = Razr.Model.remove.bind(Razr.Model);
-	Razr.getModel = Razr.Model.get.bind(Razr.Model);
-	
-	Razr.mapView = Razr.View.map.bind(Razr.View);
-	Razr.removeView = Razr.View.remove.bind(Razr.View);
-	Razr.getView = Razr.View.get.bind(Razr.View);
-	
-	Razr.mapCommand = Razr.Controller.map.bind(Razr.Controller);
+    function createNotificationMap() {
+        return (function () { 
+            
+            // name => Handler Function Array.
+            var mappings = {};
+            
+            return {
+                on: function (name, handler) { 
+                    var handlers = mappings[name] || (mappings[name] = []);
+                    if (handlers.indexOf(handler) > -1) {
+                        return false;
+                    }
+                    handlers.push(handler);
+                    return true;
+                },
+                off: function (name, handler) { 
+                    var handlers = mappings[name];
+                    if (handlers) {
+                        var idx = handlers.indexOf(handler);
+                        if (idx > -1) {
+                            handlers.splice(idx, 1);
+                            return true;
+                        }
+                    }
+                    return false;
+                },
+                trigger: function (name) { 
+                    var handlers = mappings[name];
+                    if (handlers) {
+                        
+                        // Defensive copy incase list is modified in-flight.
+                        handlers = handlers.slice();
+                        
+                        for (var i = 0; i < handlers.length; i++) {
+                            handlers[i].apply(null, arguments);
+                        }
+                    }
+                },
+            }
+        })();
+            
+    }
+    
+    function createModelMap(noteMap) {
+        var modelsById = {};
+        
+        return {
+            map: function (id, obj) {
+                if (modelsById[id]) {
+                    throw new Error("Model `" + id + "` is already mapped");
+                }
+                return modelsById[id] = extend(obj, { 
+                    notify: noteMap.trigger
+                });
+            },
+            get: function (id) { 
+                return modelsById[id];
+            },
+            remove: function (id) { 
+                var prev = modelsById[id];
+                delete modelsById[id];
+                return prev;
+            }
+        };
+    }
+    
+    function createViewMap(noteMap) {
+        var viewsById = {};
+    
+        return {
+            // Registers a view object with the framework.  If your view object
+            // exposes a `onAdd` method it will be invoked when all framework
+            // apparatus has been injected.
+            map: function (id, obj) { 
+                var view;
+                
+                if (viewsById[id]) {
+                    throw new Error("View `" + id + "` is already mapped");
+                }
+                
+                view = extend(obj, {
+                    _notesMap: {
+                        routeNoteBinding: null,
+                        entries: {},
+                    },
+                    
+                    // Broadcasts a notification to the rest of the framework.
+                    notify: noteMap.trigger,
+                    
+                    // Creates a mapping between a notification and a handler
+                    // function.
+                    onNote: function (note, handler) {
+                        
+                        // Lazily initialise the _routeNote binding
+                        if (!this._notesMap.routeNoteBinding) {
+                            this._notesMap.routeNoteBinding = this._routeNote.bind(this);
+                        }
+                        
+                        // Wire up the routing for the handler.
+                        var handlers = this._notesMap.entries[note];
+                        if (!handlers) {
+                            handlers = this._notesMap.entries[note] = [];
+                            noteMap.on(note, this._notesMap.routeNoteBinding);
+                        }
+                        
+                        // Check for dupes.
+                        if (handlers.indexOf(handler) !== -1) {
+                            throw new Error("Notification `" + note + "` is already mapped to supplied function");
+                        }
+                        
+                        // Store the handler so it can be removed later.
+                        handlers.push(handler);
+                    },
+                    
+                    // Removes the a pre-existing mapping between the notification
+                    // and handler.  If no handler is supplied all notifications of
+                    // the supplied name will be removed and if not arguments are
+                    // supplied all notification mappings for this view will be
+                    // removed.
+                    offNote: function (note, handler) {
+                        var handlers = this._notesMap.entries[note];
+                    
+                        // If no noteName is specified, remove all mappings.
+                        if (!note) {
+                            for (var key in this._notesMap.entries) {
+                                this.offNote(key);
+                            }
+                            return;
+                        }
+                    
+                        if (!handlers) {
+                            return;
+                        }
+                        
+                        if (handler) {
+                            // Find and remove a specific handler
+                            var mappingIdx = handlers.indexOf(handler);
+                            if (mappingIdx !== -1) {
+                                handlers.splice(mappingIdx, 1);
+                            }
+                        }
+                        else {
+                            // Remove all mappigns for this notification.
+                            handlers.length = 0;
+                        }
+                        
+                        
+                        // No more mappings for this notification? unsubcribe.
+                        if (handlers.length === 0) {
+                            noteMap.off(note, this._notesMap.routeNoteBinding);
+                        }
+                    },
+                    
+                    // Internal callback for processing incoming notifications.
+                    _routeNote: function (name) { 
+                        
+                        // If the View is not registered against the framework
+                        // then it shouldn't process any notifications.
+                        if (!this._registered) {
+                            return;
+                        }
+                        
+                        var handlers = this._notesMap.entries[name];
+                        
+                        if (!handlers) {
+                            return;
+                        }
+                        
+                        // Route the notification to the handlers in the correct 
+                        // scope.
+                        for (var i = 0; i < handlers.length; i++) {
+                            
+                            // defensive copy incase the handlers are modified in-flight.
+                            handlers = handlers.slice();
+                            handlers[i].apply(this, arguments);
+                        }
+                    }
+                             
+                });
+                
+                // Register the view in the map.
+                viewsById[id] = view;
+                
+                // Activate this view.
+                view._registered = true;
+                if (view.onAdd) {
+                    view.onAdd.apply(view);
+                }
+                
+                return view;
+            },
+            
+            // Retrieves a previously mapped view by it's id.
+            get: function (id) { 
+                return viewsById[id];
+            },
+            
+            // Removes a previously mapped view by it's id and returns the
+            // view instance.
+            remove: function (id) { 
+                var prev = viewsById[id];
+                
+                prev._registered = false;
+                if (prev.onRemove) {
+                    prev.onRemove.apply(prev);
+                }
+                
+                delete viewsById[id];
+                return prev;
+            }
+        }
+    }
+    
+    function createCmdMap(noteMap, modelMap, viewMap) {
+        var cmdsByNotes = {};
+        function invokeCmd(fn, noteArgs) {
+            
+            // A fresh copy of the Command's function is created each time it is
+            // executed.
+            var clone = cloneFn(fn);
+            
+            // Inject framework hooks in the command.
+            clone.notify = noteMap.trigger;
+            clone.models = modelMap;
+            clone.views = viewMap;
+            
+            clone.apply(clone, noteArgs);
+        }
+        return {
+            
+            // Creates a mapping between a notification and a command function.
+            // The supplied function will be cloned and executed when the 
+            // notification is broadcast in the application.
+            map: function (note, fn) { 
+                var cmds = cmdsByNotes[note];
+                if (!cmds) {
+                    cmds = cmdsByNotes[note] = [];
+                    noteMap.on(note, this._onNote);
+                }
+                cmds.push(fn);
+                
+            },
+            
+            // Removes a previously mapped command.  If no command function is
+            // supplied, all commands for the supplied notification will be removed.
+            remove: function (note, fn) { 
+                var cmds = cmdsByNotes[note];
+                if (cmds) {
+                    if (fn) {
+                        var idx = cmds.indexOf(fn);
+                        if (idx > -1) {
+                            cmds.splice(idx, 1);
+                        }
+                    }
+                    else {
+                        cmds.length = 0;
+                    }
+                    
+                    // Remove empty subscriptions.
+                    if (cmds.length === 0) {
+                        noteMap.off(note, this._onNote);
+                        delete cmdsByNotes[note];
+                    }
+                }
+            },
+            
+            _onNote: function(note) {
+                var cmds = cmdsByNotes[note];
+                if (cmds) {
+                    
+                    // Defensive copy incase a Command is unmapped in flight.
+                    cmds = cmds.slice();
+                    for (var i = 0; i < cmds.length; i++) {
+                        invokeCmd(cmds[i], arguments);
+                    }
+                }
+            }
+        }
+    }
+    
+    function startApp(app) {
+        if (typeof app.startup !== 'function') {
+            throw new Error("Razr Apps must supply a `startup` method");
+        }
+        app.startup();
+    }
+    
+    
+    var Razr = {
+        
+        // Factory method for creating a new Razr Application.  The supplied
+        // appContext object must provide a `startup` method which will be
+        // invoked once the MVC apparatus have been injected.
+        create: function (appContext, options) {
+            options = options || { autoStartup: false };
+            
+            var noteMap = createNotificationMap();
+            var modelMap = createModelMap(noteMap);
+            var viewMap = createViewMap(noteMap);
+            
+            var app = extend({
+                _notificationMap: noteMap,
+                
+                // Acces to the model registry.
+                models: modelMap,
+                
+                // Acces to the view registry.
+                views: viewMap,
+                
+                // Access to the command registry.
+                commands: createCmdMap(noteMap, modelMap, viewMap),
+                
+                // Broadcasts a notification throughout the application.
+                notify: noteMap.trigger
+            }, appContext);
+            
+            if (options.autoStartup) {
+                startApp(app);
+            }
+            
+            return app;
+        }
+    }
 
 
 	// Export to popular environments boilerplate.
