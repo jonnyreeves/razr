@@ -5,11 +5,11 @@ JavaScript MVC micro architecture which promotes seperation of responsibility an
 ## Apps
 Razr applications comprise of [models](#models), [views](#views) and [commands](#commands).  These three actors can all communicate with each other via notifications.
 
-Every Razr application starts life by being created with the `Razr.create` factory method:
+Every Razr application starts life by being created with the `razr.create` factory method:
 
     var razrApp = razr.create();
 	
-The resulting object (`razrApp`) will have all the Razr actors (modelMap, commandMap and viewMap) injected ready for use; all you need to do is start wiring them up.  The `Razr.create` method allows you to provide an initial context for your application where you can perform your wiring:
+The resulting object (`razrApp`) will have all the Razr actors (models, commands and views) injected ready for use; all you need to do is start wiring them up.  The `Razr.create` method allows you to provide an initial context for your application where you can perform your wiring:
 
     razr.create({ 
         startup: function () { 
@@ -94,8 +94,10 @@ Here's an example of a simple View which will update whenever the Player's Score
 		},
 		
 		onRemove: function () { 
+        
+            // Unbind all notification and event mappings added by this View.
 			this.offNote();
-			$('reset-score').off('click');
+			this.offEvent();
 		},
 		
 		onScoreChanged: function (newScore, oldScore) { 
